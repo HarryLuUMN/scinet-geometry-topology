@@ -20,7 +20,7 @@
 \address[umn]{University of Minnesota}
 
 \begin{abstract}
-This paper studies whether the geometry and topology of scientific knowledge networks contain ex ante information about breakthrough innovation. Using the OGBN-MAG subset of the Microsoft Academic Graph, I construct a dynamic scientific knowledge complex from paper-topic assignments, citation links, authorship, venues, and publication years. The central object is a measure of topological opportunity based on boundary-completion potential: whether a paper's topic set spans triangular boundaries already present in the prior topic graph. Papers published between 2011 and 2016 are then linked to their three-year forward citations and classified as breakthrough papers when they fall in the top five percent of their publication-year citation distribution. The preliminary evidence shows that boundary-completion potential predicts future scientific impact even after controlling for authorship, topic breadth, references, year fixed effects, and venue-group fixed effects. Decompositions show that first-time topic-pair novelty has a different relationship with average citations than with tail breakthroughs. The results suggest that breakthrough science is not only a function of research scale or centrality, but also of the high-order structure of the knowledge space in which researchers search.
+This paper studies whether the geometry, topology, and local spectra of scientific knowledge networks contain ex ante information about breakthrough innovation. Using the OGBN-MAG subset of the Microsoft Academic Graph, I construct a dynamic scientific knowledge complex from paper-topic assignments, citation links, authorship, venues, and publication years. The central topological object is boundary-completion potential: whether a paper's topic set spans triangular boundaries already present in the prior topic graph. I also compute local clique-complex Betti numbers and Laplacian spectral metrics on each paper's prior topic-induced graph. Papers published between 2011 and 2016 are linked to their three-year forward citations and classified as breakthrough papers when they fall in the top five percent of their publication-year citation distribution. The preliminary evidence shows that boundary-completion potential and local spectral connectivity predict future scientific impact after controlling for authorship, topic breadth, references, year fixed effects, and venue-group fixed effects. The results suggest that breakthrough science is not only a function of research scale or centrality, but also of the high-order structure and diffusion geometry of the knowledge space in which researchers search.
 \end{abstract}
 
 \begin{keyword}
@@ -42,7 +42,7 @@ The empirical setting is the OGBN-MAG subset of the Microsoft Academic Graph \ci
 
 The core analysis uses papers published from 2011 through 2016, which provides a three-year forward citation window for all papers in the analytic sample of \AnalyticN{} papers. The outcome is either log three-year forward citations or an indicator for being in the top five percent of the publication-year citation distribution. The main specifications include controls for authors, topic breadth, references, year fixed effects, and venue-group fixed effects. Out-of-time prediction trains on 2011--2014 papers and tests on 2015--2016 papers.
 
-The results are preliminary but encouraging in a specific sense. Regression estimates show that the boundary-completion index is positively associated with future scientific impact, and component specifications indicate that novel topic-pair formation is more closely related to tail breakthroughs than to average citations. Out-of-time prediction is more conservative: the topology-augmented model delivers an ROC AUC of \AucTopology{} compared with \AucBaseline{} for the baseline. Thus, topology is not presented here as a large black-box forecasting gain. Its value is interpretive: it identifies a high-order structure of scientific opportunity that is invisible in scale-based measures.
+The results are preliminary but encouraging in a specific sense. Regression estimates show that the boundary-completion index is positively associated with future scientific impact. Component specifications indicate that novel topic-pair formation is more closely related to tail breakthroughs than to average citations, while local Laplacian connectivity and spectral entropy are positively associated with both outcomes. Local $\beta_1$ holes are rare in this paper-level construction and do not carry independent explanatory power. Out-of-time prediction is more conservative: the topology-augmented model delivers an ROC AUC of \AucTopology{} compared with \AucBaseline{} for the baseline. Thus, topology and spectral graph theory are not presented here as large black-box forecasting gains. Their value is interpretive: they identify high-order and diffusion-relevant structures of scientific opportunity that are invisible in scale-based measures.
 
 The paper contributes to three literatures. First, it adds to economics of innovation by proposing an ex ante measure of opportunity in scientific search. Second, it contributes to science-of-science research on recombination and breakthrough discovery by moving from pairwise novelty to high-order topology. Third, it connects topological data analysis and spectral graph theory \citep{edelsbrunner2002topological,zomorodian2005computing,chung1997spectral,forman2003bochner} to an empirical setting where the objects have economic meaning: scientific papers, authors, fields, and future impact.
 
@@ -65,17 +65,29 @@ B_i =
 \end{equation}
 When the three boundary edges already exist, the new paper supplies a higher-order simplex over a previously established triangular boundary. This is a local, computable analogue of filling a one-dimensional hole in a knowledge complex.
 
-The third component is a graph-geometric bridge measure based on Forman curvature. For an unweighted edge $(u,v)$ in the prior topic graph, a simple Forman-Ricci curvature proxy is:
+I also compute local Betti numbers on the clique complex induced by $S_i$ in the prior graph. Let $C_k(S_i)$ be the vector space over $\mathbb{F}_2$ generated by $k$-simplices in the local clique complex, and let $\partial_k:C_k\rightarrow C_{k-1}$ be the boundary operator. The local Betti numbers are:
+\begin{equation}
+\beta_k(S_i) = \dim \ker(\partial_k) - \dim \operatorname{im}(\partial_{k+1}).
+\end{equation}
+In the implementation, $k=0,1,2$ are computed exactly on each paper's local topic complex. This gives a small-scale TDA object rather than a verbal topology metaphor.
+
+The spectral component uses the graph Laplacian of the same prior topic-induced graph. Let $A_i$ be the local adjacency matrix, $D_i$ its degree matrix, and:
+\begin{equation}
+L_i = D_i - A_i.
+\end{equation}
+I compute the second-smallest eigenvalue $\lambda_2(L_i)$, the adjacency spectral radius, and Laplacian spectral entropy. $\lambda_2(L_i)$ measures local algebraic connectivity; spectral entropy captures how dispersed the local diffusion modes are.
+
+The final graph-geometric bridge measure is based on Forman curvature. For an unweighted edge $(u,v)$ in the prior topic graph, a simple Forman-Ricci curvature proxy is:
 \begin{equation}
 F(u,v) = 4 - d(u) - d(v),
 \end{equation}
 where $d(\cdot)$ is prior topic degree. Highly negative values identify edges that connect high-degree regions and therefore act as bridge-like, high-load parts of the knowledge geometry. For paper $i$, I average negative curvature over its already existing topic pairs.
 
-The main topological opportunity index is standardized boundary-completion potential:
+The main topological opportunity index is standardized boundary closure:
 \begin{equation}
 TO_i = z(B_i).
 \end{equation}
-Pairwise novelty and negative Forman curvature are retained as decomposition variables. The object is intentionally ex ante: all components are computed using only knowledge observed before the paper's publication year.
+Pairwise novelty, local Betti numbers, Laplacian spectral metrics, and negative Forman curvature are retained as decomposition variables. The object is intentionally ex ante: all components are computed using only knowledge observed before the paper's publication year.
 
 \section{Data}
 
@@ -113,6 +125,15 @@ Figure~\ref{fig:annual_topology} shows the evolution of the knowledge complex. N
 \label{fig:annual_topology}
 \end{figure}
 
+Figure~\ref{fig:tda_spectral} shows the local homology and spectral graph measures. Local $\beta_1$ is sparse, which is informative: in this paper-level construction, the prior topic neighborhoods are usually connected and triangle-rich. By contrast, local algebraic connectivity and spectral entropy vary systematically over time, giving usable variation for spectral graph analysis.
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=.82\textwidth]{figures/annual_tda_spectral.pdf}
+\caption{Local TDA and spectral graph measures}
+\label{fig:tda_spectral}
+\end{figure}
+
 Figure~\ref{fig:binscatter} bins papers by the topological opportunity index. Papers in higher-opportunity bins receive more future citations and are more likely to become breakthrough papers. The relationship is not a proof of causality, but it is the first empirical fact the paper seeks to explain.
 
 \begin{figure}[!htbp]
@@ -124,7 +145,7 @@ Figure~\ref{fig:binscatter} bins papers by the topological opportunity index. Pa
 
 \input{tables/regression_table.tex}
 
-Table~\ref{tab:regressions} reports the main regression evidence. The boundary-completion index is positively associated with the breakthrough indicator and is directionally positive for log forward citations. Component specifications show a useful distinction: first-time topic-pair novelty is negatively associated with average citations but positively associated with the probability of reaching the top tail. Boundary-completion potential is the more stable positive topology channel for breakthrough outcomes.
+Table~\ref{tab:regressions} reports the main regression evidence. The boundary-completion index is positively associated with both log forward citations and the breakthrough indicator. Component specifications show a useful distinction: first-time topic-pair novelty is negatively associated with average citations but positively associated with the probability of reaching the top tail. Local $\lambda_2(L)$ and spectral entropy are positive in both outcome models, consistent with the interpretation that well-connected local knowledge neighborhoods diffuse more effectively. Local $\beta_1$ holes are too sparse to explain much variation in this draft.
 
 \input{tables/prediction_table.tex}
 
@@ -139,11 +160,11 @@ Table~\ref{tab:prediction} and Figure~\ref{fig:prediction} report out-of-time pr
 
 \section{Discussion}
 
-The main interpretation is that scientific knowledge has economically meaningful shape. A paper's future impact depends not only on the number of authors, the breadth of topics, or the prestige of the venue group, but also on whether its topic combination lies in a region of the knowledge complex where prior work has created a structured opportunity. Pairwise novelty captures unexplored combinations. Boundary-completion potential captures higher-order closure. Negative curvature captures bridge-like locations in the topic graph.
+The main interpretation is that scientific knowledge has economically meaningful shape. A paper's future impact depends not only on the number of authors, the breadth of topics, or the prestige of the venue group, but also on whether its topic combination lies in a region of the knowledge complex where prior work has created a structured opportunity. Pairwise novelty captures unexplored combinations. Boundary-completion potential captures higher-order closure. Local Betti numbers capture small-scale homology. Laplacian eigenvalues capture diffusion geometry. Negative curvature captures bridge-like locations in the topic graph.
 
 This interpretation connects naturally to models of recombinant innovation. If researchers search locally in knowledge space, then the distribution of opportunities is shaped by prior discoveries. Some areas are saturated; others contain gaps that are visible only when the knowledge space is represented as a high-order object rather than as a list of fields or citations. Topology provides a vocabulary for those gaps.
 
-The current draft has three important limitations. First, the outcome is scientific impact rather than direct economic value. Citations are a meaningful measure of scientific influence, but a top-journal economics version should link papers to patent citations, firm innovation, or regional outcomes. Second, the current topological measures are local and computationally scalable proxies rather than full persistent homology over the entire MAG graph. Third, the research design is predictive rather than causal. Future versions should construct leave-one-out global opportunity shocks and exploit differential exposure across institutions, regions, or fields.
+The current draft has three important limitations. First, the outcome is scientific impact rather than direct economic value. Citations are a meaningful measure of scientific influence, but a top-journal economics version should link papers to patent citations, firm innovation, or regional outcomes. Second, the current TDA measures are exact only on local paper-level clique complexes; they are not yet persistent homology over a global filtration of the MAG graph. Third, the research design is predictive rather than causal. Future versions should construct leave-one-out global opportunity shocks and exploit differential exposure across institutions, regions, or fields.
 
 \section{Conclusion}
 

@@ -370,7 +370,7 @@ def write_regression_table(rows: pd.DataFrame, meta: pd.DataFrame) -> None:
     lines.append(r"\begin{threeparttable}")
     lines.append(r"\caption{Topology, geometry, and future scientific impact}")
     lines.append(r"\label{tab:regressions}")
-    lines.append(r"\footnotesize")
+    lines.append(r"\scriptsize")
     lines.append(r"\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}l" + "c" * len(models) + r"}")
     lines.append(r"\toprule")
     lines.append(" & " + " & ".join([f"({i + 1})" for i in range(len(models))]) + r" \\")
