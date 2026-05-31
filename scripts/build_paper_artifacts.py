@@ -177,12 +177,15 @@ def global_tda_summary(years: np.ndarray, field_ids: np.ndarray, offsets: np.nda
     top_fields = np.argsort(field_counts)[-TDA_TOP_FIELDS:]
     top_lookup = {int(field): idx for idx, field in enumerate(top_fields.tolist())}
     co_counts = np.zeros((TDA_TOP_FIELDS, TDA_TOP_FIELDS), dtype=np.int32)
+    tri_counts: dict[tuple[int, int, int], int] = {}
     for paper_id in range(len(years)):
         topics = np.unique(field_ids[offsets[paper_id] : offsets[paper_id + 1]])
         local = sorted(top_lookup[int(topic)] for topic in topics.tolist() if int(topic) in top_lookup)
         for u, v in combinations(local, 2):
             co_counts[u, v] += 1
             co_counts[v, u] += 1
+        for a, b, c in combinations(local, 3):
+            tri_counts[(a, b, c)] = tri_counts.get((a, b, c), 0) + 1
     edge_events = [
         (int(co_counts[u, v]), u, v)
         for u in range(TDA_TOP_FIELDS)
@@ -190,24 +193,34 @@ def global_tda_summary(years: np.ndarray, field_ids: np.ndarray, offsets: np.nda
         if co_counts[u, v] > 0
     ]
     edge_events = sorted(edge_events, reverse=True)[:TDA_MAX_EDGES]
-    edge_birth = np.full((TDA_TOP_FIELDS, TDA_TOP_FIELDS), np.inf)
-    edge_weight = {}
-    for step, (count, u, v) in enumerate(edge_events, start=1):
-        edge_birth[u, v] = step
-        edge_birth[v, u] = step
-        edge_weight[(u, v)] = count
     edge_set = {(u, v) for _, u, v in edge_events}
+    triangle_events = [
+        (count, a, b, c)
+        for (a, b, c), count in tri_counts.items()
+        if (a, b) in edge_set and (a, c) in edge_set and (b, c) in edge_set
+    ]
+    count_ranks = {
+        count: rank
+        for rank, count in enumerate(
+            sorted({count for count, _, _ in edge_events} | {count for count, _, _, _ in triangle_events}, reverse=True),
+            start=1,
+        )
+    }
+    edge_birth = np.full((TDA_TOP_FIELDS, TDA_TOP_FIELDS), np.inf)
+    for count, u, v in edge_events:
+        birth = count_ranks[count]
+        edge_birth[u, v] = birth
+        edge_birth[v, u] = birth
     simplices: list[tuple[int, int, tuple]] = [(0, 0, ("v", node)) for node in range(TDA_TOP_FIELDS)]
     simplices.extend((1, int(edge_birth[u, v]), ("e", u, v)) for _, u, v in edge_events)
     triangle_births = []
-    for a, b, c in combinations(range(TDA_TOP_FIELDS), 3):
-        if (a, b) in edge_set and (a, c) in edge_set and (b, c) in edge_set:
-            birth = int(max(edge_birth[a, b], edge_birth[a, c], edge_birth[b, c]))
-            triangle_births.append(birth)
-            simplices.append((2, birth, ("t", a, b, c)))
+    for count, a, b, c in triangle_events:
+        birth = max(int(edge_birth[a, b]), int(edge_birth[a, c]), int(edge_birth[b, c]), count_ranks[count])
+        triangle_births.append(birth)
+        simplices.append((2, birth, ("t", a, b, c)))
     intervals = persistent_intervals(simplices)
     rows = []
-    max_step = len(edge_events)
+    max_step = max(count_ranks.values()) if count_ranks else 0
     h0 = intervals[intervals["dimension"] == 0]
     h1 = intervals[intervals["dimension"] == 1]
     for step in range(0, max_step + 1):
