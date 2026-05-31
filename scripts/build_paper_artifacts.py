@@ -369,6 +369,47 @@ def add_outcomes(features: pd.DataFrame, years: np.ndarray, labels: np.ndarray, 
     return features
 
 
+def add_external_topology_exposure(features: pd.DataFrame, field_ids: np.ndarray, offsets: np.ndarray) -> pd.DataFrame:
+    source = features[(features["year"] >= ANALYTIC_START - 1) & (features["year"] <= ANALYTIC_END)].copy()
+    rows = []
+    for paper_id, year, label, opportunity in source[["paper_id", "year", "label", "topological_opportunity"]].itertuples(index=False):
+        for topic in paper_topics(field_ids, offsets, int(paper_id)).tolist():
+            rows.append((int(paper_id), int(year), int(label), int(topic), float(opportunity)))
+    long = pd.DataFrame(rows, columns=["paper_id", "year", "label", "topic", "topological_opportunity"])
+    by_topic = long.groupby(["year", "topic"])["topological_opportunity"].agg(["sum", "count"]).reset_index()
+    by_topic_venue = long.groupby(["year", "topic", "label"])["topological_opportunity"].agg(["sum", "count"]).reset_index()
+    topic_lookup = {
+        (int(year), int(topic)): (float(total), int(count))
+        for year, topic, total, count in by_topic.itertuples(index=False)
+    }
+    venue_lookup = {
+        (int(year), int(topic), int(label)): (float(total), int(count))
+        for year, topic, label, total, count in by_topic_venue.itertuples(index=False)
+    }
+    exposure = {}
+    for paper_id, year, label in source[["paper_id", "year", "label"]].itertuples(index=False):
+        values = []
+        for topic in paper_topics(field_ids, offsets, int(paper_id)).tolist():
+            total, count = topic_lookup.get((int(year) - 1, int(topic)), (0.0, 0))
+            venue_total, venue_count = venue_lookup.get((int(year) - 1, int(topic), int(label)), (0.0, 0))
+            outside_count = count - venue_count
+            if outside_count > 0:
+                values.append((total - venue_total) / outside_count)
+        exposure[int(paper_id)] = float(np.mean(values)) if values else np.nan
+    features["external_topology_exposure"] = features["paper_id"].map(exposure)
+    subset = features.loc[
+        (features["year"] >= ANALYTIC_START)
+        & (features["year"] <= ANALYTIC_END)
+        & (features["topic_count_capped"] >= 2),
+        "external_topology_exposure",
+    ].dropna()
+    sd = subset.std(ddof=0)
+    features["z_external_topology_exposure"] = (
+        (features["external_topology_exposure"] - subset.mean()) / sd if sd > 0 else np.nan
+    )
+    return features
+
+
 def design_matrix(df: pd.DataFrame, covariates: list[str], use_fe: bool = True) -> tuple[np.ndarray, list[str]]:
     parts = [pd.Series(1.0, index=df.index, name="Intercept"), df[covariates].astype(float)]
     if use_fe:
@@ -462,6 +503,35 @@ def regression_models(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     return pd.DataFrame(rows), pd.DataFrame(meta)
 
 
+def causal_exposure_models(df: pd.DataFrame) -> pd.DataFrame:
+    sample = df.dropna(subset=["z_external_topology_exposure"]).copy()
+    covariates = ["z_external_topology_exposure", "log_authors", "log_topics", "log_references"]
+    specs = [
+        ("First stage", "Topological opportunity", "topological_opportunity"),
+        ("Reduced form", "Log cites", "log_future_cites_3y"),
+        ("Reduced form", "Top 5\\%", "breakthrough_top5"),
+    ]
+    rows = []
+    for design, outcome, ycol in specs:
+        X, names = design_matrix(sample, covariates)
+        y = sample[ycol].to_numpy(dtype=float)
+        beta, se, r2 = ols_hc1(y, X)
+        idx = names.index("z_external_topology_exposure")
+        p = 2 * norm.sf(abs(beta[idx] / se[idx])) if se[idx] > 0 else 1.0
+        rows.append(
+            {
+                "design": design,
+                "outcome": outcome,
+                "coef": beta[idx],
+                "se": se[idx],
+                "p": p,
+                "n": len(sample),
+                "r2": r2,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
 def write_regression_table(rows: pd.DataFrame, meta: pd.DataFrame) -> None:
     variables = [
         ("topological_opportunity", "TO index"),
@@ -515,6 +585,37 @@ def write_regression_table(rows: pd.DataFrame, meta: pd.DataFrame) -> None:
     lines.append(r"\end{threeparttable}")
     lines.append(r"\end{table}")
     (TABLES / "regression_table.tex").write_text("\n".join(lines) + "\n")
+
+
+def write_causal_exposure_table(rows: pd.DataFrame) -> None:
+    lines = [
+        r"\begin{table}[!htbp]\centering",
+        r"\begin{threeparttable}",
+        r"\caption{External topology exposure and scientific impact}",
+        r"\label{tab:causal_exposure}",
+        r"\begin{tabular}{llccc}",
+        r"\toprule",
+        r"Design & Outcome & Coefficient & SE & $N$ \\",
+        r"\midrule",
+    ]
+    for _, row in rows.iterrows():
+        lines.append(
+            f"{row['design']} & {row['outcome']} & {row['coef']:.3f}{star(row['p'])} & "
+            f"({row['se']:.3f}) & {int(row['n']):,} \\\\"
+        )
+    lines.extend(
+        [
+            r"\bottomrule",
+            r"\end{tabular}",
+            r"\begin{tablenotes}",
+            r"\footnotesize",
+            r"\item Notes: The treatment variable is a standardized external topology exposure: for each focal paper, the mean prior-year topological opportunity of papers that share its fields of study, excluding papers from the same venue group. All specifications include log authors, log topics, log references, publication-year fixed effects, and venue-group fixed effects. The first-stage outcome is the focal paper's own topological opportunity. Reduced-form outcomes are log three-year forward citations and the top-five-percent breakthrough indicator. HC1 robust standard errors are in parentheses. $^{*}p<0.10$, $^{**}p<0.05$, $^{***}p<0.01$.",
+            r"\end{tablenotes}",
+            r"\end{threeparttable}",
+            r"\end{table}",
+        ]
+    )
+    (TABLES / "causal_exposure_table.tex").write_text("\n".join(lines) + "\n")
 
 
 def prediction_table(df: pd.DataFrame) -> pd.DataFrame:
@@ -817,6 +918,7 @@ def main() -> None:
     features["log_authors"] = np.log1p(features["author_count"])
     features["log_topics"] = np.log1p(features["topic_count"])
     features["log_references"] = np.log1p(features["references"])
+    features = add_external_topology_exposure(features, field_ids, offsets)
     features.to_csv(DERIVED / "paper_features.csv", index=False)
     analytic = features[
         (features["year"] >= ANALYTIC_START)
@@ -824,8 +926,10 @@ def main() -> None:
         & (features["topic_count_capped"] >= 2)
     ].copy()
     rows, reg_meta = regression_models(analytic)
+    causal_rows = causal_exposure_models(analytic)
     pred = prediction_table(analytic)
     write_regression_table(rows, reg_meta)
+    write_causal_exposure_table(causal_rows)
     write_prediction_table(pred)
     write_summary_tables(features, analytic, pred, reg_meta)
     make_figures(features, analytic, pred, years, field_ids, offsets)
