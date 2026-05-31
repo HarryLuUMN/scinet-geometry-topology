@@ -54,7 +54,23 @@ The paper also contributes to the science-of-science literature. \citet{fortuna2
 
 Finally, the paper connects innovation measurement to topological data analysis, graph geometry, and spectral graph theory. Persistent homology provides tools for measuring connected components, cycles, and higher-order cavities in filtered spaces \citep{edelsbrunner2002topological,zomorodian2005computing}. Spectral graph theory studies how Laplacian eigenvalues summarize connectivity and diffusion in graphs \citep{chung1997spectral}. Discrete curvature offers another way to identify bridge-like or high-load regions of a graph \citep{forman2003bochner}. This paper uses these tools as empirical measurements of scientific opportunity: Betti numbers and persistence diagrams describe knowledge holes, Laplacian spectra describe local diffusion geometry, and Forman curvature describes bridge-like topic pairs.
 
-\section{Conceptual Framework}
+\section{Mathematical Toolkit and Conceptual Framework}
+
+This section introduces the mathematical objects used in the paper. The goal is not to import topology as a black-box forecasting device, but to translate several tools from applied mathematics into economic measurements of scientific opportunity. Each object has a direct empirical interpretation: graphs describe pairwise knowledge connections, simplicial complexes describe higher-order combinations, Betti numbers describe holes or disconnected pieces in the knowledge space, Laplacian spectra describe local diffusion capacity, and curvature identifies bridge-like topic pairs.
+
+\subsection{Graphs and simplicial complexes}
+
+A graph records pairwise relations. In this paper, a topic graph connects two fields of study if they have appeared together in prior papers. This is useful, but it loses information about higher-order combinations. A paper with three fields does not merely create three pairwise links; it may also create a three-way research object. A simplicial complex is the mathematical structure that keeps track of such higher-order combinations. Nodes are fields, edges are two-field combinations, triangles are three-field combinations, and higher-dimensional simplices represent larger topic bundles. This is the reason topology is useful here: it lets the empirical object move from pairwise novelty to high-order recombination.
+
+\subsection{Homology, persistence, spectra, and curvature}
+
+Homology summarizes the shape of a complex. The number $\beta_0$ counts connected components, $\beta_1$ counts one-dimensional holes, and $\beta_2$ counts higher-dimensional cavities. In economic terms, these quantities describe whether a local knowledge neighborhood is fragmented, whether there are missing higher-order combinations, and whether the neighborhood contains unresolved structure. Persistent homology extends this idea across a filtration, asking which holes remain visible as weaker knowledge ties are gradually admitted.
+
+Spectral graph theory provides a complementary language for diffusion. The graph Laplacian summarizes how connected a local topic neighborhood is. Its second-smallest eigenvalue, $\lambda_2(L)$, is the algebraic connectivity of the graph: higher values indicate that the neighborhood is less fragmented and that information can move through more routes. Spectral entropy measures how dispersed the local diffusion modes are. Discrete curvature adds a bridge interpretation. In the Forman curvature proxy used here, very negative curvature marks topic pairs that connect high-degree regions and therefore resemble bottlenecks or bridges in the knowledge graph.
+
+The economic mapping is therefore straightforward. Topological opportunity measures whether a paper occupies an unresolved high-order gap. Spectral connectivity measures whether nearby knowledge is organized enough for the new combination to diffuse. Curvature measures whether a paper uses bridge-like parts of the knowledge space. The empirical claim is not that these mathematical objects are intrinsically valuable; it is that they provide ex ante measurements of scientific search environments that standard scale, venue, and topic-count controls do not capture.
+
+\subsection{Paper-level measures}
 
 Let $G_t=(V_t,E_t)$ be the cumulative topic co-occurrence graph before year $t$. A node is a field of study and an edge indicates that two fields have appeared together in at least one prior paper. A paper $i$ published in year $t$ has a topic set $S_i \subset V_t$. The paper can be interpreted as adding local structure to the prior knowledge graph.
 
