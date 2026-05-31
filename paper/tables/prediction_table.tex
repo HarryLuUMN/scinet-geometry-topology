@@ -6,13 +6,13 @@
 \toprule
 Model & ROC AUC & Average precision & Test $N$ \\
 \midrule
-Baseline controls & 0.877 & 0.335 & 156,775 \\
-Controls + topology & 0.877 & 0.335 & 156,775 \\
+Baseline controls & 0.863 & 0.336 & 156,775 \\
+Controls + topology & 0.864 & 0.337 & 156,775 \\
 \bottomrule
 \end{tabular}
 \begin{tablenotes}
 \footnotesize
-\item Notes: Models train on 2011--2014 papers and test on 2015--2016 papers. Breakthrough papers are defined as top-five-percent papers within publication year by three-year forward citations.
+\item Notes: Histogram gradient-boosted classifiers train on 2011--2014 papers and test on 2015--2016 papers. Baseline controls include log authors, log topics, log references, and publication year. The topology model adds local Betti-number and spectral graph features. Breakthrough papers are defined as top-five-percent papers within publication year by three-year forward citations.
 \end{tablenotes}
 \end{threeparttable}
 \end{table}
