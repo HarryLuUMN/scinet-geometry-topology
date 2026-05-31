@@ -237,10 +237,10 @@ def regression_models(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
 
 def write_regression_table(rows: pd.DataFrame, meta: pd.DataFrame) -> None:
     variables = [
-        ("topological_opportunity", "Topological opportunity index"),
-        ("z_novel_pair_share", "Novel topic-pair share"),
-        ("z_boundary_completion_share", "Boundary-completion potential"),
-        ("z_negative_forman_curvature", "Negative Forman curvature"),
+        ("topological_opportunity", "TO index"),
+        ("z_novel_pair_share", "Novel pairs"),
+        ("z_boundary_completion_share", "Boundary closure"),
+        ("z_negative_forman_curvature", "Negative curvature"),
     ]
     models = meta["model"].tolist()
     lines = []
@@ -248,8 +248,8 @@ def write_regression_table(rows: pd.DataFrame, meta: pd.DataFrame) -> None:
     lines.append(r"\begin{threeparttable}")
     lines.append(r"\caption{Topology, geometry, and future scientific impact}")
     lines.append(r"\label{tab:regressions}")
-    lines.append(r"\scriptsize")
-    lines.append(r"\begin{tabular}{l" + "c" * len(models) + r"}")
+    lines.append(r"\footnotesize")
+    lines.append(r"\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}l" + "c" * len(models) + r"}")
     lines.append(r"\toprule")
     lines.append(" & " + " & ".join([f"({i + 1})" for i in range(len(models))]) + r" \\")
     lines.append(r"\midrule")
@@ -268,15 +268,17 @@ def write_regression_table(rows: pd.DataFrame, meta: pd.DataFrame) -> None:
         lines.append(label + " & " + " & ".join(coefs) + r" \\")
         lines.append(" & " + " & ".join(ses) + r" \\")
     lines.append(r"\midrule")
-    lines.append("Outcome & " + " & ".join([m.split(":")[0] for m in models]) + r" \\")
-    lines.append("Specification & " + " & ".join([m.split(": ")[1] for m in models]) + r" \\")
+    outcome_labels = {"Log cites": "Log cites", "Breakthrough": "Top 5\\%"}
+    spec_labels = {"Baseline": "Base", "+ Topology index": "+ TO", "+ Components": "+ Comp."}
+    lines.append("Outcome & " + " & ".join([outcome_labels[m.split(":")[0]] for m in models]) + r" \\")
+    lines.append("Specification & " + " & ".join([spec_labels[m.split(": ")[1]] for m in models]) + r" \\")
     lines.append("Controls & " + " & ".join(["Yes"] * len(models)) + r" \\")
     lines.append("Year FE & " + " & ".join(["Yes"] * len(models)) + r" \\")
     lines.append("Venue-group FE & " + " & ".join(["Yes"] * len(models)) + r" \\")
     lines.append("$N$ & " + " & ".join([f"{int(n):,}" for n in meta["n"]]) + r" \\")
     lines.append("$R^2$ & " + " & ".join([f"{r2:.3f}" for r2 in meta["r2"]]) + r" \\")
     lines.append(r"\bottomrule")
-    lines.append(r"\end{tabular}%")
+    lines.append(r"\end{tabular*}%")
     lines.append(r"\begin{tablenotes}")
     lines.append(r"\footnotesize")
     lines.append(r"\item Notes: HC1 robust standard errors in parentheses. The analytic sample contains papers published from 2011 through 2016, allowing a three-year forward citation window. Topology variables are standardized within the analytic sample. $^{*}p<0.10$, $^{**}p<0.05$, $^{***}p<0.01$.")
