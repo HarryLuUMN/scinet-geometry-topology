@@ -26,6 +26,7 @@ MAX_TOPICS = 6
 ANALYTIC_START = 2011
 ANALYTIC_END = 2016
 TDA_TOP_FIELDS = 80
+TDA_FIELD_RANK_START = 100
 TDA_MAX_EDGES = 1_200
 
 
@@ -174,7 +175,8 @@ def persistent_intervals(simplices: list[tuple[int, int, tuple]]) -> pd.DataFram
 
 def global_tda_summary(years: np.ndarray, field_ids: np.ndarray, offsets: np.ndarray) -> tuple[pd.DataFrame, pd.DataFrame]:
     field_counts = np.bincount(field_ids, minlength=N_FIELDS)
-    top_fields = np.argsort(field_counts)[-TDA_TOP_FIELDS:]
+    ranked_fields = np.argsort(field_counts)[::-1]
+    top_fields = ranked_fields[TDA_FIELD_RANK_START : TDA_FIELD_RANK_START + TDA_TOP_FIELDS]
     top_lookup = {int(field): idx for idx, field in enumerate(top_fields.tolist())}
     co_counts = np.zeros((TDA_TOP_FIELDS, TDA_TOP_FIELDS), dtype=np.int32)
     tri_counts: dict[tuple[int, int, int], int] = {}
@@ -697,7 +699,9 @@ def make_persistence_figure(years: np.ndarray, field_ids: np.ndarray, offsets: n
     axes[2].set_ylabel("Feature rank")
     axes[2].set_title(barcode_title)
     axes[2].invert_yaxis()
-    fig.suptitle(f"Persistent homology of the top-{TDA_TOP_FIELDS} field co-occurrence backbone", y=1.04)
+    first_rank = TDA_FIELD_RANK_START + 1
+    last_rank = TDA_FIELD_RANK_START + TDA_TOP_FIELDS
+    fig.suptitle(f"Persistent homology of field-frequency ranks {first_rank}-{last_rank}", y=1.04)
     fig.tight_layout()
     fig.savefig(FIGURES / "tda_persistence_summary.pdf", bbox_inches="tight")
     plt.close(fig)
