@@ -279,7 +279,8 @@ def write_regression_table(rows: pd.DataFrame, meta: pd.DataFrame) -> None:
     lines.append(r"\end{tabular}%")
     lines.append(r"}")
     lines.append(r"\begin{tablenotes}")
-    lines.append(r"\small Notes: HC1 robust standard errors in parentheses. The analytic sample contains papers published from 2011 through 2016, allowing a three-year forward citation window. Topology variables are standardized within the analytic sample. $^{*}p<0.10$, $^{**}p<0.05$, $^{***}p<0.01$.")
+    lines.append(r"\footnotesize")
+    lines.append(r"\item Notes: HC1 robust standard errors in parentheses. The analytic sample contains papers published from 2011 through 2016, allowing a three-year forward citation window. Topology variables are standardized within the analytic sample. $^{*}p<0.10$, $^{**}p<0.05$, $^{***}p<0.01$.")
     lines.append(r"\end{tablenotes}")
     lines.append(r"\end{threeparttable}")
     lines.append(r"\end{table}")
@@ -326,7 +327,8 @@ def write_prediction_table(pred: pd.DataFrame) -> None:
             r"\bottomrule",
             r"\end{tabular}",
             r"\begin{tablenotes}",
-            r"\small Notes: Models train on 2011--2014 papers and test on 2015--2016 papers. Breakthrough papers are defined as top-five-percent papers within publication year by three-year forward citations.",
+            r"\footnotesize",
+            r"\item Notes: Models train on 2011--2014 papers and test on 2015--2016 papers. Breakthrough papers are defined as top-five-percent papers within publication year by three-year forward citations.",
             r"\end{tablenotes}",
             r"\end{threeparttable}",
             r"\end{table}",
