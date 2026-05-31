@@ -1,0 +1,157 @@
+\documentclass[preprint,12pt,authoryear]{elsarticle}
+
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{threeparttable}
+\usepackage{resizegather}
+\usepackage{setspace}
+
+\journal{Research Policy}
+
+\begin{document}
+
+\begin{frontmatter}
+
+\title{The Economic Value of Knowledge Geometry: Topological Opportunities and Breakthrough Innovation in Scientific Networks}
+
+\author[umn]{Harry Lu}
+\address[umn]{University of Minnesota}
+
+\begin{abstract}
+This paper studies whether the geometry and topology of scientific knowledge networks contain ex ante information about breakthrough innovation. Using the OGBN-MAG subset of the Microsoft Academic Graph, I construct a dynamic scientific knowledge complex from paper-topic assignments, citation links, authorship, venues, and publication years. The central object is a measure of topological opportunity: a paper's location relative to previously unconnected topic pairs, triangular boundaries in the prior knowledge complex, and negatively curved topic-pair bridges. Papers published between 2011 and 2016 are then linked to their three-year forward citations and classified as breakthrough papers when they fall in the top five percent of their publication-year citation distribution. The preliminary evidence shows that topological opportunity predicts future scientific impact even after controlling for authorship, topic breadth, references, year fixed effects, and venue-group fixed effects. Out-of-time prediction exercises also show that topology improves the classification of future breakthrough papers. The results suggest that breakthrough science is not only a function of research scale or centrality, but also of the high-order structure of the knowledge space in which researchers search.
+\end{abstract}
+
+\begin{keyword}
+science of science \sep innovation \sep topology \sep spectral graph theory \sep Microsoft Academic Graph \sep OGBN-MAG
+\end{keyword}
+
+\end{frontmatter}
+
+\input{tables/results_macros.tex}
+\onehalfspacing
+
+\section{Introduction}
+
+Where do breakthrough innovations come from? A large literature in economics, management, and the science of science emphasizes cumulative knowledge, recombination, collaboration networks, and the uneven distribution of scientific opportunity. Yet most empirical measures of scientific opportunity remain low-order: publication counts, citation counts, team size, field fixed effects, or pairwise network centrality. These measures are informative, but they do not directly characterize the high-order geometry of the knowledge space in which research ideas are combined.
+
+This paper develops and tests a simple claim: scientific breakthroughs are more likely when researchers occupy topological opportunities in the prior knowledge space. A topological opportunity is a location where existing topics are near enough to be meaningfully connected, but the higher-order knowledge combination has not yet been stabilized. In such locations, a paper can add more than another node to the scientific graph. It can close a gap, fill a boundary, or create a bridge between previously separated knowledge regions.
+
+The empirical setting is the OGBN-MAG subset of the Microsoft Academic Graph. The data contain 736,389 papers, 1,134,649 authors, 8,740 institutions, 59,965 fields of study, 5.4 million citation edges, and 7.5 million paper-topic edges. For each paper, I observe publication year, venue label, authorship, references, and field-of-study assignments. I build a dynamic knowledge complex year by year. Before each paper is published, I compute whether its topics connect previously unobserved pairs, whether they span triangular boundaries in the prior topic graph, and whether they lie on negatively curved topic-pair bridges.
+
+The core analysis uses papers published from 2011 through 2016, which provides a three-year forward citation window for all papers in the analytic sample of \AnalyticN{} papers. The outcome is either log three-year forward citations or an indicator for being in the top five percent of the publication-year citation distribution. The main specifications include controls for authors, topic breadth, references, year fixed effects, and venue-group fixed effects. Out-of-time prediction trains on 2011--2014 papers and tests on 2015--2016 papers.
+
+The results are preliminary but encouraging. The topology-augmented model raises out-of-time ROC AUC from \AucBaseline{} to \AucTopology{}. Regression estimates show that the topology index is positively associated with future scientific impact, and component specifications indicate that both novel topic-pair formation and boundary-completion potential matter. These facts are consistent with a view of innovation in which high-value ideas emerge from structured gaps in the knowledge space, not merely from scale, popularity, or centrality.
+
+The paper contributes to three literatures. First, it adds to economics of innovation by proposing an ex ante measure of opportunity in scientific search. Second, it contributes to science-of-science research on recombination and breakthrough discovery by moving from pairwise novelty to high-order topology. Third, it connects topological data analysis and spectral graph theory to an empirical setting where the objects have economic meaning: scientific papers, authors, fields, and future impact.
+
+\section{Conceptual Framework}
+
+Let $G_t=(V_t,E_t)$ be the cumulative topic co-occurrence graph before year $t$. A node is a field of study and an edge indicates that two fields have appeared together in at least one prior paper. A paper $i$ published in year $t$ has a topic set $S_i \subset V_t$. The paper can be interpreted as adding local structure to the prior knowledge graph.
+
+The first component of opportunity is pairwise novelty:
+\begin{equation}
+N_i = \frac{1}{\binom{|S_i|}{2}}\sum_{\{u,v\}\subset S_i}\mathbf{1}\{(u,v)\notin E_t\}.
+\end{equation}
+This measure captures whether the paper combines topics that had not previously appeared together.
+
+The second component is boundary-completion potential. For triples of topics, define:
+\begin{equation}
+B_i =
+\frac{1}{\binom{|S_i|}{3}}
+\sum_{\{u,v,w\}\subset S_i}
+\mathbf{1}\{(u,v),(u,w),(v,w)\in E_t\}.
+\end{equation}
+When the three boundary edges already exist, the new paper supplies a higher-order simplex over a previously established triangular boundary. This is a local, computable analogue of filling a one-dimensional hole in a knowledge complex.
+
+The third component is a graph-geometric bridge measure based on Forman curvature. For an unweighted edge $(u,v)$ in the prior topic graph, a simple Forman-Ricci curvature proxy is:
+\begin{equation}
+F(u,v) = 4 - d(u) - d(v),
+\end{equation}
+where $d(\cdot)$ is prior topic degree. Highly negative values identify edges that connect high-degree regions and therefore act as bridge-like, high-load parts of the knowledge geometry. For paper $i$, I average negative curvature over its already existing topic pairs.
+
+The topological opportunity index is the average of standardized pairwise novelty, boundary-completion potential, and negative curvature:
+\begin{equation}
+TO_i = \frac{1}{3}\left[z(N_i) + z(B_i) + z(-\bar F_i)\right].
+\end{equation}
+The object is intentionally ex ante: all components are computed using only knowledge observed before the paper's publication year.
+
+\section{Data}
+
+The analysis uses OGBN-MAG, a heterogeneous academic network extracted from Microsoft Academic Graph and distributed by the Open Graph Benchmark. The graph contains four node types: papers, authors, institutions, and fields of study. It also contains four directed relation types: authors are affiliated with institutions, authors write papers, papers cite papers, and papers have fields of study.
+
+\input{tables/data_table.tex}
+
+The paper-level outcome is three-year forward citations. For a paper $i$ published in year $t$, I count citations from papers published in years $t+1$, $t+2$, and $t+3$. The breakthrough indicator equals one if the paper is in the top five percent of the forward-citation distribution among papers published in the same year.
+
+\input{tables/summary_table.tex}
+
+\section{Empirical Strategy}
+
+The baseline regression is:
+\begin{equation}
+Y_{i,t+3} =
+\alpha + \beta TO_{i,t}
++ X_{i,t}'\gamma
++ \delta_t
++ \mu_{v(i)}
++ \varepsilon_i,
+\end{equation}
+where $Y_{i,t+3}$ is either log three-year forward citations or the breakthrough indicator. $TO_{i,t}$ is the topological opportunity index. $X_{i,t}$ includes log authors, log topic count, and log references. $\delta_t$ denotes publication-year fixed effects. $\mu_{v(i)}$ denotes venue-group fixed effects for the largest venue groups and an omitted group for all remaining venues.
+
+The coefficient $\beta$ should not be interpreted as a fully causal estimate in this draft. The current design establishes that ex ante topology contains predictive content beyond common paper-level controls and fixed effects. A stronger version of the paper would link MAG/OpenAlex fields to patent citations, regional outcomes, or institution-level shocks, and would use leave-one-region-out or shift-share exposure to global topological opportunities.
+
+\section{Results}
+
+Figure~\ref{fig:annual_topology} shows the evolution of the knowledge complex. Novel topic-pair formation declines as the cumulative topic graph densifies, while boundary-completion potential rises as more prior edges become available for higher-order closure. This pattern is consistent with a maturing knowledge space in which opportunities move from first-time pair formation toward higher-order recombination.
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=.82\textwidth]{figures/annual_topology.pdf}
+\caption{Evolution of topic-pair novelty and boundary-completion potential}
+\label{fig:annual_topology}
+\end{figure}
+
+Figure~\ref{fig:binscatter} bins papers by the topological opportunity index. Papers in higher-opportunity bins receive more future citations and are more likely to become breakthrough papers. The relationship is not a proof of causality, but it is the first empirical fact the paper seeks to explain.
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=.82\textwidth]{figures/topology_binscatter.pdf}
+\caption{Topological opportunity and future scientific impact}
+\label{fig:binscatter}
+\end{figure}
+
+\input{tables/regression_table.tex}
+
+Table~\ref{tab:regressions} reports the main regression evidence. The topology index is positively associated with both log forward citations and the breakthrough indicator. Component specifications show that the result is not driven by a single mechanical variable. Novel topic-pair formation, boundary-completion potential, and negative curvature each capture different aspects of knowledge geometry.
+
+\input{tables/prediction_table.tex}
+
+Table~\ref{tab:prediction} and Figure~\ref{fig:prediction} report out-of-time prediction. Models are trained on papers from 2011--2014 and tested on 2015--2016 papers. Adding topology improves breakthrough classification relative to a baseline with standard controls and fixed effects.
+
+\begin{figure}[!htbp]
+\centering
+\includegraphics[width=.72\textwidth]{figures/prediction_performance.pdf}
+\caption{Out-of-time prediction performance}
+\label{fig:prediction}
+\end{figure}
+
+\section{Discussion}
+
+The main interpretation is that scientific knowledge has economically meaningful shape. A paper's future impact depends not only on the number of authors, the breadth of topics, or the prestige of the venue group, but also on whether its topic combination lies in a region of the knowledge complex where prior work has created a structured opportunity. Pairwise novelty captures unexplored combinations. Boundary-completion potential captures higher-order closure. Negative curvature captures bridge-like locations in the topic graph.
+
+This interpretation connects naturally to models of recombinant innovation. If researchers search locally in knowledge space, then the distribution of opportunities is shaped by prior discoveries. Some areas are saturated; others contain gaps that are visible only when the knowledge space is represented as a high-order object rather than as a list of fields or citations. Topology provides a vocabulary for those gaps.
+
+The current draft has three important limitations. First, the outcome is scientific impact rather than direct economic value. Citations are a meaningful measure of scientific influence, but a top-journal economics version should link papers to patent citations, firm innovation, or regional outcomes. Second, the current topological measures are local and computationally scalable proxies rather than full persistent homology over the entire MAG graph. Third, the research design is predictive rather than causal. Future versions should construct leave-one-out global opportunity shocks and exploit differential exposure across institutions, regions, or fields.
+
+\section{Conclusion}
+
+This paper proposes a new way to measure scientific opportunity. Instead of asking only how many papers, authors, citations, or topics are present, it asks where a paper lies in the geometry and topology of the prior knowledge space. Using OGBN-MAG, the preliminary evidence shows that ex ante topological opportunities predict future breakthrough science.
+
+The broader implication is that innovation policy and science strategy may benefit from measuring the shape of knowledge. If high-value discoveries often arise from topological gaps, then institutions and funding agencies should care not only about field size or recent citation momentum, but also about the latent geometry of recombination.
+
+\bibliographystyle{elsarticle-harv}
+\bibliography{references}
+
+\end{document}
