@@ -874,6 +874,53 @@ def make_figures(features: pd.DataFrame, analytic: pd.DataFrame, pred: pd.DataFr
     fig.tight_layout()
     fig.savefig(FIGURES / "topology_binscatter.pdf")
     plt.close(fig)
+    regimes = analytic.copy()
+    regimes["spectral_connectivity"] = regimes[
+        ["z_local_laplacian_lambda2", "z_local_spectral_radius", "z_local_spectral_entropy"]
+    ].mean(axis=1)
+    regimes["topology_decile"] = pd.qcut(regimes["topological_opportunity"], 10, labels=False, duplicates="drop")
+    regimes["spectral_decile"] = pd.qcut(regimes["spectral_connectivity"], 10, labels=False, duplicates="drop")
+    heat = regimes.pivot_table(
+        index="spectral_decile",
+        columns="topology_decile",
+        values="breakthrough_top5",
+        aggfunc="mean",
+    ).sort_index()
+    top_high = regimes["topological_opportunity"] >= regimes["topological_opportunity"].median()
+    spec_high = regimes["spectral_connectivity"] >= regimes["spectral_connectivity"].median()
+    regimes["innovation_regime"] = np.select(
+        [~top_high & spec_high, top_high & ~spec_high, ~top_high & ~spec_high, top_high & spec_high],
+        ["Routine core", "Isolated novelty", "Fragmented search", "Frontier completion"],
+    )
+    regime_order = ["Routine core", "Isolated novelty", "Fragmented search", "Frontier completion"]
+    regime_summary = (
+        regimes.groupby("innovation_regime")
+        .agg(breakthrough_top5=("breakthrough_top5", "mean"), future_cites_3y=("future_cites_3y", "mean"))
+        .reindex(regime_order)
+    )
+    fig, (ax, bar_ax) = plt.subplots(1, 2, figsize=(10.4, 4.2), gridspec_kw={"width_ratios": [1.2, 1.0]})
+    image = ax.imshow(100 * heat.to_numpy(), origin="lower", aspect="auto", cmap="viridis")
+    ax.set_xlabel("Topological opportunity decile")
+    ax.set_ylabel("Spectral connectivity decile")
+    ax.set_xticks([0, heat.shape[1] - 1])
+    ax.set_xticklabels(["Low", "High"])
+    ax.set_yticks([0, heat.shape[0] - 1])
+    ax.set_yticklabels(["Low", "High"])
+    ax.set_title("Breakthrough probability by regime")
+    ax.text(heat.shape[1] - 1.25, heat.shape[0] - 0.9, "Frontier\ncompletion", color="white", ha="right", va="top", fontsize=9)
+    cbar = fig.colorbar(image, ax=ax, fraction=0.046, pad=0.04)
+    cbar.set_label("Top 5% papers (%)")
+    x = np.arange(len(regime_order))
+    bar_ax.bar(x, 100 * regime_summary["breakthrough_top5"], color=["steelblue", "darkorange", "gray", "darkred"])
+    bar_ax.set_xticks(x)
+    bar_ax.set_xticklabels(regime_order, rotation=22, ha="right")
+    bar_ax.set_ylabel("Top 5% papers (%)")
+    bar_ax.set_title("Regime-level breakthrough rates")
+    for xi, value in zip(x, 100 * regime_summary["breakthrough_top5"]):
+        bar_ax.text(xi, value + 0.15, f"{value:.1f}", ha="center", va="bottom", fontsize=8)
+    fig.tight_layout()
+    fig.savefig(FIGURES / "innovation_regimes.pdf")
+    plt.close(fig)
     metric_labels = ["ROC AUC", "Average precision"]
     baseline = pred.loc[pred["model"] == "Baseline controls", ["auc", "average_precision"]].iloc[0].to_numpy()
     topology = pred.loc[pred["model"] == "Controls + topology", ["auc", "average_precision"]].iloc[0].to_numpy()
