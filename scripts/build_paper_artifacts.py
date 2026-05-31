@@ -153,9 +153,7 @@ def add_outcomes(features: pd.DataFrame, years: np.ndarray, labels: np.ndarray, 
         subset = features.loc[(features["year"] >= ANALYTIC_START) & (features["year"] <= ANALYTIC_END), col]
         sd = subset.std(ddof=0)
         features[f"z_{col}"] = (features[col] - subset.mean()) / sd if sd > 0 else 0.0
-    features["topological_opportunity"] = features[
-        ["z_novel_pair_share", "z_boundary_completion_share", "z_negative_forman_curvature"]
-    ].mean(axis=1)
+    features["topological_opportunity"] = features["z_boundary_completion_share"]
     subset_mask = (features["year"] >= ANALYTIC_START) & (features["year"] <= ANALYTIC_END)
     features["breakthrough_top5"] = 0
     for year, group in features.loc[subset_mask].groupby("year"):
