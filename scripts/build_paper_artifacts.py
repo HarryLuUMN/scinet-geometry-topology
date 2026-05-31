@@ -878,11 +878,8 @@ def make_figures(features: pd.DataFrame, analytic: pd.DataFrame, pred: pd.DataFr
     regimes["spectral_connectivity"] = regimes[
         ["z_local_laplacian_lambda2", "z_local_spectral_radius", "z_local_spectral_entropy"]
     ].mean(axis=1)
-    residual_design = np.column_stack([np.ones(len(regimes)), regimes["topological_opportunity"].to_numpy(dtype=float)])
-    residual_beta = np.linalg.lstsq(residual_design, regimes["spectral_connectivity"].to_numpy(dtype=float), rcond=None)[0]
-    regimes["relative_spectral_connectivity"] = regimes["spectral_connectivity"] - residual_design @ residual_beta
     top_high = regimes["topological_opportunity"] >= regimes["topological_opportunity"].median()
-    spec_high = regimes["relative_spectral_connectivity"] >= regimes["relative_spectral_connectivity"].median()
+    spec_high = regimes["spectral_connectivity"] >= regimes["spectral_connectivity"].quantile(0.25)
     regimes["innovation_regime"] = np.select(
         [~top_high & spec_high, top_high & ~spec_high, ~top_high & ~spec_high, top_high & spec_high],
         ["Routine core", "Isolated novelty", "Fragmented search", "Frontier completion"],
@@ -909,11 +906,11 @@ def make_figures(features: pd.DataFrame, analytic: pd.DataFrame, pred: pd.DataFr
     label_matrix = np.array([["Fragmented\nsearch", "Isolated\nnovelty"], ["Routine\ncore", "Frontier\ncompletion"]])
     image = ax.imshow(regime_matrix, origin="lower", aspect="equal", cmap="viridis")
     ax.set_xlabel("Topological opportunity")
-    ax.set_ylabel("Relative spectral connectivity")
+    ax.set_ylabel("Spectral connectivity")
     ax.set_xticks([0, 1])
     ax.set_xticklabels(["Low", "High"])
     ax.set_yticks([0, 1])
-    ax.set_yticklabels(["Low", "High"])
+    ax.set_yticklabels(["Low", "Sufficient"])
     ax.set_title("Innovation regimes")
     threshold = float(np.nanmean(regime_matrix))
     for row in range(2):
