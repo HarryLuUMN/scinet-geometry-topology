@@ -8,10 +8,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.stats import norm
-from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import HistGradientBoostingClassifier
 from sklearn.metrics import average_precision_score, roc_auc_score
-from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import StandardScaler
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -520,23 +518,33 @@ def write_regression_table(rows: pd.DataFrame, meta: pd.DataFrame) -> None:
 
 
 def prediction_table(df: pd.DataFrame) -> pd.DataFrame:
-    base = ["log_authors", "log_topics", "log_references"]
+    base = ["log_authors", "log_topics", "log_references", "year"]
     topo = base + [
         "topological_opportunity",
         "z_novel_pair_share",
+        "z_local_betti_0",
         "z_local_betti_1",
+        "z_local_betti_2",
         "z_local_laplacian_lambda2",
+        "z_local_spectral_radius",
         "z_local_spectral_entropy",
         "z_negative_forman_curvature",
     ]
     rows = []
     for name, covariates in (("Baseline controls", base), ("Controls + topology", topo)):
-        X, _ = design_matrix(df, covariates)
+        X = df[covariates].astype(float)
         y = df["breakthrough_top5"].to_numpy(dtype=int)
         train = df["year"].to_numpy() <= 2014
-        model = make_pipeline(StandardScaler(with_mean=False), LogisticRegression(max_iter=1000, class_weight="balanced"))
-        model.fit(X[train], y[train])
-        pred = model.predict_proba(X[~train])[:, 1]
+        model = HistGradientBoostingClassifier(
+            max_iter=180,
+            learning_rate=0.05,
+            max_leaf_nodes=31,
+            min_samples_leaf=100,
+            l2_regularization=0.01,
+            random_state=7,
+        )
+        model.fit(X.loc[train], y[train])
+        pred = model.predict_proba(X.loc[~train])[:, 1]
         rows.append(
             {
                 "model": name,
@@ -567,7 +575,7 @@ def write_prediction_table(pred: pd.DataFrame) -> None:
             r"\end{tabular}",
             r"\begin{tablenotes}",
             r"\footnotesize",
-            r"\item Notes: Models train on 2011--2014 papers and test on 2015--2016 papers. Breakthrough papers are defined as top-five-percent papers within publication year by three-year forward citations.",
+            r"\item Notes: Histogram gradient-boosted classifiers train on 2011--2014 papers and test on 2015--2016 papers. Baseline controls include log authors, log topics, log references, and publication year. The topology model adds standardized TDA, spectral, and curvature features. Breakthrough papers are defined as top-five-percent papers within publication year by three-year forward citations.",
             r"\end{tablenotes}",
             r"\end{threeparttable}",
             r"\end{table}",
@@ -654,6 +662,8 @@ def write_summary_tables(features: pd.DataFrame, analytic: pd.DataFrame, pred: p
         f"\\newcommand{{\\AnalyticN}}{{{len(analytic):,}}}",
         f"\\newcommand{{\\AucBaseline}}{{{pred.loc[pred['model'] == 'Baseline controls', 'auc'].iloc[0]:.3f}}}",
         f"\\newcommand{{\\AucTopology}}{{{pred.loc[pred['model'] == 'Controls + topology', 'auc'].iloc[0]:.3f}}}",
+        f"\\newcommand{{\\ApBaseline}}{{{pred.loc[pred['model'] == 'Baseline controls', 'average_precision'].iloc[0]:.3f}}}",
+        f"\\newcommand{{\\ApTopology}}{{{pred.loc[pred['model'] == 'Controls + topology', 'average_precision'].iloc[0]:.3f}}}",
         f"\\newcommand{{\\RegRtwoBaseline}}{{{reg_meta['r2'].iloc[0]:.3f}}}",
         f"\\newcommand{{\\RegRtwoTopology}}{{{reg_meta['r2'].iloc[1]:.3f}}}",
     ]
