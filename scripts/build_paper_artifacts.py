@@ -25,6 +25,7 @@ N_FIELDS = 59_965
 MAX_TOPICS = 6
 ANALYTIC_START = 2011
 ANALYTIC_END = 2016
+TDA_TOP_FIELDS = 50
 
 
 def read_vector(path: Path, dtype: np.dtype) -> np.ndarray:
@@ -136,6 +137,118 @@ def local_complex_stats(topics: np.ndarray, existing_edges: set[tuple[int, int]]
     else:
         spectral_entropy = 0.0
     return int(beta0), int(beta1), int(beta2), lambda2, spectral_radius, spectral_entropy
+
+
+def component_count(n: int, edges: list[tuple[int, int]]) -> int:
+    parent = list(range(n))
+
+    def find(x: int) -> int:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    for u, v in edges:
+        ru, rv = find(u), find(v)
+        if ru != rv:
+            parent[rv] = ru
+    return len({find(i) for i in range(n)})
+
+
+def h0_persistence(node_birth: np.ndarray, edge_birth: np.ndarray, end_year: int) -> list[tuple[int, int, bool]]:
+    n = len(node_birth)
+    parent = list(range(n))
+    comp_birth = node_birth.astype(int).tolist()
+    intervals: list[tuple[int, int, bool]] = []
+
+    def find(x: int) -> int:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    edge_events = []
+    for u in range(n):
+        for v in range(u + 1, n):
+            if np.isfinite(edge_birth[u, v]):
+                edge_events.append((int(edge_birth[u, v]), u, v))
+    for birth, u, v in sorted(edge_events):
+        ru, rv = find(u), find(v)
+        if ru == rv:
+            continue
+        if comp_birth[ru] <= comp_birth[rv]:
+            parent[rv] = ru
+            intervals.append((comp_birth[rv], birth, False))
+        else:
+            parent[ru] = rv
+            intervals.append((comp_birth[ru], birth, False))
+    for node in range(n):
+        if find(node) == node:
+            intervals.append((comp_birth[node], end_year + 1, True))
+    return intervals
+
+
+def global_tda_summary(years: np.ndarray, field_ids: np.ndarray, offsets: np.ndarray) -> tuple[pd.DataFrame, pd.DataFrame]:
+    field_counts = np.bincount(field_ids, minlength=N_FIELDS)
+    top_fields = np.argsort(field_counts)[-TDA_TOP_FIELDS:]
+    top_lookup = {int(field): idx for idx, field in enumerate(top_fields.tolist())}
+    node_birth = np.full(TDA_TOP_FIELDS, np.inf)
+    edge_birth = np.full((TDA_TOP_FIELDS, TDA_TOP_FIELDS), np.inf)
+    for paper_id, year in enumerate(years.tolist()):
+        topics = np.unique(field_ids[offsets[paper_id] : offsets[paper_id + 1]])
+        local = sorted(top_lookup[int(topic)] for topic in topics.tolist() if int(topic) in top_lookup)
+        if not local:
+            continue
+        for u in local:
+            if year < node_birth[u]:
+                node_birth[u] = year
+        for u, v in combinations(local, 2):
+            if year < edge_birth[u, v]:
+                edge_birth[u, v] = year
+                edge_birth[v, u] = year
+    start_year = int(np.nanmin(node_birth[np.isfinite(node_birth)]))
+    end_year = int(years.max())
+    triangle_birth = {}
+    for a, b, c in combinations(range(TDA_TOP_FIELDS), 3):
+        birth = max(edge_birth[a, b], edge_birth[a, c], edge_birth[b, c])
+        if np.isfinite(birth):
+            triangle_birth[(a, b, c)] = int(birth)
+    rows = []
+    for year in range(start_year, end_year + 1):
+        active_nodes = [idx for idx in range(TDA_TOP_FIELDS) if node_birth[idx] <= year]
+        active_map = {node: pos for pos, node in enumerate(active_nodes)}
+        local_edges = [
+            (active_map[u], active_map[v])
+            for u in active_nodes
+            for v in active_nodes
+            if u < v and edge_birth[u, v] <= year
+        ]
+        local_triangles = [
+            tuple(active_map[node] for node in tri)
+            for tri, birth in triangle_birth.items()
+            if birth <= year and all(node in active_map for node in tri)
+        ]
+        beta0 = component_count(len(active_nodes), local_edges) if active_nodes else 0
+        edge_index = {edge: pos for pos, edge in enumerate(local_edges)}
+        d2 = np.zeros((len(local_edges), len(local_triangles)), dtype=np.uint8)
+        for col, (a, b, c) in enumerate(local_triangles):
+            for edge in ((a, b), (a, c), (b, c)):
+                d2[edge_index[edge], col] = 1
+        rank_d2 = gf2_rank(d2)
+        beta1 = len(local_edges) - len(active_nodes) + beta0 - rank_d2
+        rows.append(
+            {
+                "year": year,
+                "beta0": beta0,
+                "beta1": max(int(beta1), 0),
+                "vertices": len(active_nodes),
+                "edges": len(local_edges),
+                "triangles": len(local_triangles),
+            }
+        )
+    intervals = pd.DataFrame(h0_persistence(node_birth, edge_birth, end_year), columns=["birth", "death", "infinite"])
+    intervals["lifetime"] = intervals["death"] - intervals["birth"]
+    return pd.DataFrame(rows), intervals
 
 
 def future_citations(citation_edges: np.ndarray, years: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -551,7 +664,41 @@ def write_summary_tables(features: pd.DataFrame, analytic: pd.DataFrame, pred: p
     (TABLES / "results_macros.tex").write_text("\n".join(macros) + "\n")
 
 
-def make_figures(features: pd.DataFrame, analytic: pd.DataFrame, pred: pd.DataFrame) -> None:
+def make_persistence_figure(years: np.ndarray, field_ids: np.ndarray, offsets: np.ndarray) -> None:
+    betti, intervals = global_tda_summary(years, field_ids, offsets)
+    fig, axes = plt.subplots(1, 3, figsize=(12.0, 3.8))
+    axes[0].plot(betti["year"], betti["beta0"], marker="o", label=r"$\beta_0$")
+    axes[0].plot(betti["year"], betti["beta1"], marker="s", label=r"$\beta_1$")
+    axes[0].set_xlabel("Filtration year")
+    axes[0].set_ylabel("Betti number")
+    axes[0].set_title("Betti curves")
+    axes[0].legend(frameon=False)
+    finite = intervals[~intervals["infinite"]]
+    infinite = intervals[intervals["infinite"]]
+    axes[1].scatter(finite["birth"], finite["death"], s=22, alpha=0.75, label="finite")
+    axes[1].scatter(infinite["birth"], infinite["death"], marker="^", s=48, color="darkred", label="survives")
+    min_year = int(intervals["birth"].min())
+    max_year = int(intervals["death"].max())
+    axes[1].plot([min_year, max_year], [min_year, max_year], color="gray", linestyle="--", linewidth=1)
+    axes[1].set_xlabel("Birth")
+    axes[1].set_ylabel("Death")
+    axes[1].set_title(r"$H_0$ persistence diagram")
+    axes[1].legend(frameon=False, fontsize=8)
+    bars = intervals.sort_values(["infinite", "lifetime"], ascending=[False, False]).head(25).reset_index(drop=True)
+    for idx, row in bars.iterrows():
+        color = "darkred" if row["infinite"] else "steelblue"
+        axes[2].hlines(idx, row["birth"], row["death"], color=color, linewidth=2)
+    axes[2].set_xlabel("Filtration year")
+    axes[2].set_ylabel("Component rank")
+    axes[2].set_title(r"Longest $H_0$ barcode")
+    axes[2].invert_yaxis()
+    fig.suptitle(f"Persistent homology of the top-{TDA_TOP_FIELDS} field knowledge complex", y=1.04)
+    fig.tight_layout()
+    fig.savefig(FIGURES / "tda_persistence_summary.pdf", bbox_inches="tight")
+    plt.close(fig)
+
+
+def make_figures(features: pd.DataFrame, analytic: pd.DataFrame, pred: pd.DataFrame, years: np.ndarray, field_ids: np.ndarray, offsets: np.ndarray) -> None:
     annual = features.groupby("year").agg(
         novel_pair_share=("novel_pair_share", "mean"),
         boundary_completion_share=("boundary_completion_share", "mean"),
@@ -621,6 +768,7 @@ def make_figures(features: pd.DataFrame, analytic: pd.DataFrame, pred: pd.DataFr
     fig.tight_layout()
     fig.savefig(FIGURES / "prediction_performance.pdf")
     plt.close(fig)
+    make_persistence_figure(years, field_ids, offsets)
 
 
 def main() -> None:
@@ -648,7 +796,7 @@ def main() -> None:
     write_regression_table(rows, reg_meta)
     write_prediction_table(pred)
     write_summary_tables(features, analytic, pred, reg_meta)
-    make_figures(features, analytic, pred)
+    make_figures(features, analytic, pred, years, field_ids, offsets)
     print(f"Wrote analysis artifacts for {len(analytic):,} analytic papers.")
 
 
