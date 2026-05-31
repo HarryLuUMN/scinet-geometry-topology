@@ -1,0 +1,19 @@
+\begin{table}[!htbp]\centering
+\begin{threeparttable}
+\caption{External topology exposure and scientific impact}
+\label{tab:causal_exposure}
+\begin{tabular}{llccc}
+\toprule
+Design & Outcome & Coefficient & SE & $N$ \\
+\midrule
+First stage & Topological opportunity & 1.912*** & (0.004) & 485,818 \\
+Reduced form & Log cites & 0.077*** & (0.004) & 485,818 \\
+Reduced form & Top 5\% & 0.012*** & (0.001) & 485,818 \\
+\bottomrule
+\end{tabular}
+\begin{tablenotes}
+\footnotesize
+\item Notes: The treatment variable is a standardized external topology exposure: for each focal paper, the mean prior-year topological opportunity of papers that share its fields of study, excluding papers from the same venue group. All specifications include log authors, log topics, log references, publication-year fixed effects, and venue-group fixed effects. The first-stage outcome is the focal paper's own topological opportunity. Reduced-form outcomes are log three-year forward citations and the top-five-percent breakthrough indicator. HC1 robust standard errors are in parentheses. $^{*}p<0.10$, $^{**}p<0.05$, $^{***}p<0.01$.
+\end{tablenotes}
+\end{threeparttable}
+\end{table}

@@ -20,7 +20,7 @@
 \address[umn]{University of Minnesota}
 
 \begin{abstract}
-This paper studies whether the geometry, topology, and local spectra of scientific knowledge networks contain ex ante information about breakthrough innovation. Using the OGBN-MAG subset of the Microsoft Academic Graph, I construct a dynamic scientific knowledge complex from paper-topic assignments, citation links, authorship, venues, and publication years. The central topological object is boundary-completion potential: whether a paper's topic set spans triangular boundaries already present in the prior topic graph. I also compute local clique-complex Betti numbers and Laplacian spectral metrics on each paper's prior topic-induced graph. Papers published between 2011 and 2016 are linked to their three-year forward citations and classified as breakthrough papers when they fall in the top five percent of their publication-year citation distribution. The preliminary evidence shows that boundary-completion potential and local spectral connectivity predict future scientific impact after controlling for authorship, topic breadth, references, year fixed effects, and venue-group fixed effects. The results suggest that breakthrough science is not only a function of research scale or centrality, but also of the high-order structure and diffusion geometry of the knowledge space in which researchers search.
+This paper studies whether the geometry, topology, and local spectra of scientific knowledge networks shape breakthrough innovation. Using the OGBN-MAG subset of the Microsoft Academic Graph, I construct a dynamic scientific knowledge complex from paper-topic assignments, citation links, authorship, venues, and publication years. The central topological object is boundary-completion potential: whether a paper's topic set spans triangular boundaries already present in the prior topic graph. I also compute local clique-complex Betti numbers and Laplacian spectral metrics on each paper's prior topic-induced graph. Papers published between 2011 and 2016 are linked to their three-year forward citations and classified as breakthrough papers when they fall in the top five percent of their publication-year citation distribution. The main evidence shows that boundary-completion potential and local spectral connectivity are associated with future scientific impact after controlling for authorship, topic breadth, references, year fixed effects, and venue-group fixed effects. A causal-style exposure design uses lagged, leave-venue-out topology shocks from papers in the same fields of study: external frontier opening strongly shifts a focal paper's own topological opportunity and predicts higher future citations and breakthrough probability. The results suggest that breakthrough science is not only a function of research scale or centrality, but also of the high-order structure and diffusion geometry of the knowledge space in which researchers search.
 \end{abstract}
 
 \begin{keyword}
@@ -40,9 +40,9 @@ This paper develops and tests a simple claim: scientific breakthroughs are more 
 
 The empirical setting is the OGBN-MAG subset of the Microsoft Academic Graph \citep{sinha2015overview,hu2020ogb}. The data contain 736,389 papers, 1,134,649 authors, 8,740 institutions, 59,965 fields of study, 5.4 million citation edges, and 7.5 million paper-topic edges. For each paper, I observe publication year, venue label, authorship, references, and field-of-study assignments. I build a dynamic knowledge complex year by year. Before each paper is published, I compute whether its topics connect previously unobserved pairs, whether they span triangular boundaries in the prior topic graph, and whether they lie on negatively curved topic-pair bridges.
 
-The core analysis uses papers published from 2011 through 2016, which provides a three-year forward citation window for all papers in the analytic sample of \AnalyticN{} papers. The outcome is either log three-year forward citations or an indicator for being in the top five percent of the publication-year citation distribution. The main specifications include controls for authors, topic breadth, references, year fixed effects, and venue-group fixed effects. Out-of-time prediction uses nonlinear classifiers trained on 2011--2014 papers and tested on 2015--2016 papers.
+The core analysis uses papers published from 2011 through 2016, which provides a three-year forward citation window for all papers in the analytic sample of \AnalyticN{} papers. The outcome is either log three-year forward citations or an indicator for being in the top five percent of the publication-year citation distribution. The main specifications include controls for authors, topic breadth, references, year fixed effects, and venue-group fixed effects. To move beyond predictive association, I also construct a lagged external topology exposure that measures whether the focal paper's fields experienced topological frontier opening in the previous year outside the focal venue group.
 
-The results are preliminary but encouraging in a specific sense. Regression estimates show that the boundary-completion index is positively associated with future scientific impact. Component specifications indicate that novel topic-pair formation is more closely related to tail breakthroughs than to average citations, while local Laplacian connectivity and spectral entropy are positively associated with both outcomes. Local $\beta_1$ holes are rare in this paper-level construction and do not carry independent explanatory power. Out-of-time prediction is conservative but positive: the topology-augmented model improves ROC AUC from \AucBaseline{} to \AucTopology{} and average precision from \ApBaseline{} to \ApTopology{}. Thus, topology and spectral graph theory are not presented here as large black-box forecasting gains. Their value is interpretive: they identify high-order and diffusion-relevant structures of scientific opportunity that are invisible in scale-based measures.
+The results are preliminary but encouraging in a specific sense. Regression estimates show that the boundary-completion index is positively associated with future scientific impact. Component specifications indicate that novel topic-pair formation is more closely related to tail breakthroughs than to average citations, while local Laplacian connectivity and spectral entropy are positively associated with both outcomes. Local $\beta_1$ holes are rare in this paper-level construction and do not carry independent explanatory power. The external-exposure design shows the same pattern from a more causal angle: when adjacent fields experience leave-venue-out frontier opening in the previous year, focal papers are more likely to occupy topological opportunities and later receive more citations. The value of topology and spectral graph theory is therefore not a small black-box forecasting gain. It is that they identify high-order and diffusion-relevant structures of scientific opportunity that are invisible in scale-based measures.
 
 The paper contributes to three literatures. First, it adds to economics of innovation by proposing an ex ante measure of opportunity in scientific search. Second, it contributes to science-of-science research on recombination and breakthrough discovery by moving from pairwise novelty to high-order topology. Third, it connects topological data analysis and spectral graph theory \citep{edelsbrunner2002topological,zomorodian2005computing,chung1997spectral,forman2003bochner} to an empirical setting where the objects have economic meaning: scientific papers, authors, fields, and future impact.
 
@@ -120,7 +120,21 @@ Y_{i,t+3} =
 \end{equation}
 where $Y_{i,t+3}$ is either log three-year forward citations or the breakthrough indicator. $TO_{i,t}$ is the topological opportunity index. $X_{i,t}$ includes log authors, log topic count, and log references. $\delta_t$ denotes publication-year fixed effects. $\mu_{v(i)}$ denotes venue-group fixed effects for the largest venue groups and an omitted group for all remaining venues.
 
-The coefficient $\beta$ should not be interpreted as a fully causal estimate in this draft. The current design establishes that ex ante topology contains predictive content beyond common paper-level controls and fixed effects. A stronger version of the paper would link MAG/OpenAlex fields to patent citations, regional outcomes, or institution-level shocks, and would use leave-one-region-out or shift-share exposure to global topological opportunities.
+The main causal-style design exploits external frontier opening in adjacent knowledge neighborhoods. For each paper, define:
+\begin{equation}
+Z_{i,t-1}^{-v} =
+\frac{1}{|S_i|}
+\sum_{f\in S_i}
+\overline{TO}_{f,t-1}^{-v(i)},
+\end{equation}
+where $\overline{TO}_{f,t-1}^{-v(i)}$ is the mean topological opportunity of papers published in field $f$ in the previous year, excluding papers from the focal paper's venue group. This variable is lagged and leave-venue-out: it captures whether the surrounding scientific frontier opened before the focal paper was published and outside the focal publication venue.
+
+I estimate two specifications:
+\begin{align}
+TO_{i,t} &= \alpha + \pi Z_{i,t-1}^{-v} + X_{i,t}'\gamma + \delta_t + \mu_{v(i)} + u_i,\\
+Y_{i,t+3} &= \alpha + \rho Z_{i,t-1}^{-v} + X_{i,t}'\gamma + \delta_t + \mu_{v(i)} + \varepsilon_i.
+\end{align}
+The first equation asks whether external frontier opening shifts the focal paper's own topological opportunity. The second is a reduced-form outcome equation. The identifying assumption is not full random assignment. It is that, conditional on publication year, venue group, and paper-level controls, topology changes produced by other venues in the same fields proxy for external knowledge-supply shocks rather than focal-paper quality alone.
 
 \section{Results}
 
@@ -164,16 +178,9 @@ Figure~\ref{fig:binscatter} bins papers by the topological opportunity index. Pa
 
 Table~\ref{tab:regressions} reports the main regression evidence. The boundary-completion index is positively associated with both log forward citations and the breakthrough indicator. Component specifications show a useful distinction: first-time topic-pair novelty is negatively associated with average citations but positively associated with the probability of reaching the top tail. Local $\lambda_2(L)$ and spectral entropy are positive in both outcome models, consistent with the interpretation that well-connected local knowledge neighborhoods diffuse more effectively. Local $\beta_1$ holes are too sparse to explain much variation in this draft.
 
-\input{tables/prediction_table.tex}
+\input{tables/causal_exposure_table.tex}
 
-Table~\ref{tab:prediction} and Figure~\ref{fig:prediction} report out-of-time prediction. Models are trained on papers from 2011--2014 and tested on 2015--2016 papers. The prediction exercise uses histogram gradient boosting so that local topology can enter through threshold effects and feature interactions rather than only as a linear main effect. Adding local Betti-number and spectral graph features produces a small but positive gain over the baseline in both ROC AUC and average precision. This should be read as an incremental forecasting result rather than a large black-box performance claim.
-
-\begin{figure}[!htbp]
-\centering
-\includegraphics[width=.72\textwidth]{figures/prediction_performance.pdf}
-\caption{Out-of-time prediction performance}
-\label{fig:prediction}
-\end{figure}
+Table~\ref{tab:causal_exposure} reports the external-exposure evidence. A one-standard-deviation increase in lagged leave-venue-out topology exposure strongly predicts the focal paper's own topological opportunity. The same exposure is positively associated with both log three-year forward citations and the top-five-percent breakthrough indicator. This does not make the paper a fully causal natural experiment, but it changes the empirical object from ``can topology forecast impact?'' to ``do external changes in nearby knowledge geometry shift later scientific outcomes?''
 
 \section{Discussion}
 
@@ -181,7 +188,7 @@ The main interpretation is that scientific knowledge has economically meaningful
 
 This interpretation connects naturally to models of recombinant innovation. If researchers search locally in knowledge space, then the distribution of opportunities is shaped by prior discoveries. Some areas are saturated; others contain gaps that are visible only when the knowledge space is represented as a high-order object rather than as a list of fields or citations. Topology provides a vocabulary for those gaps.
 
-The current draft has three important limitations. First, the outcome is scientific impact rather than direct economic value. Citations are a meaningful measure of scientific influence, but a top-journal economics version should link papers to patent citations, firm innovation, or regional outcomes. Second, the current TDA measures are exact only on local paper-level clique complexes; they are not yet persistent homology over a global filtration of the MAG graph. Third, the research design is predictive rather than causal. Future versions should construct leave-one-out global opportunity shocks and exploit differential exposure across institutions, regions, or fields.
+The current draft has three important limitations. First, the outcome is scientific impact rather than direct economic value. Citations are a meaningful measure of scientific influence, but a top-journal economics version should link papers to patent citations, firm innovation, or regional outcomes. Second, the current TDA measures are exact only on local paper-level clique complexes; they are not yet persistent homology over a global filtration of the MAG graph. Third, the external-exposure design improves causal interpretation but does not by itself deliver random assignment. Future versions should strengthen the design by exploiting differential exposure across institutions, regions, funding shocks, or patent-linked technology classes.
 
 \section{Conclusion}
 
