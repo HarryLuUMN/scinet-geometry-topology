@@ -59,6 +59,85 @@ def paper_topics(field_ids: np.ndarray, offsets: np.ndarray, paper_id: int) -> n
     return topics
 
 
+def gf2_rank(matrix: np.ndarray) -> int:
+    if matrix.size == 0:
+        return 0
+    a = matrix.copy().astype(np.uint8) % 2
+    rows, cols = a.shape
+    rank = 0
+    for col in range(cols):
+        pivot = None
+        for row in range(rank, rows):
+            if a[row, col]:
+                pivot = row
+                break
+        if pivot is None:
+            continue
+        if pivot != rank:
+            a[[rank, pivot]] = a[[pivot, rank]]
+        for row in range(rows):
+            if row != rank and a[row, col]:
+                a[row] ^= a[rank]
+        rank += 1
+        if rank == rows:
+            break
+    return rank
+
+
+def local_complex_stats(topics: np.ndarray, existing_edges: set[tuple[int, int]]) -> tuple[int, int, int, float, float, float]:
+    n = int(topics.size)
+    if n == 0:
+        return 0, 0, 0, 0.0, 0.0, 0.0
+    local_index = {int(topic): pos for pos, topic in enumerate(topics.tolist())}
+    edges = [(local_index[u], local_index[v]) for u, v in existing_edges]
+    triangles = []
+    tetrahedra = []
+    for a, b, c in combinations(range(n), 3):
+        if (a, b) in edges and (a, c) in edges and (b, c) in edges:
+            triangles.append((a, b, c))
+    for a, b, c, d in combinations(range(n), 4):
+        faces = ((a, b, c), (a, b, d), (a, c, d), (b, c, d))
+        if all(face in triangles for face in faces):
+            tetrahedra.append((a, b, c, d))
+    d1 = np.zeros((n, len(edges)), dtype=np.uint8)
+    for col, (u, v) in enumerate(edges):
+        d1[u, col] = 1
+        d1[v, col] = 1
+    edge_index = {edge: pos for pos, edge in enumerate(edges)}
+    d2 = np.zeros((len(edges), len(triangles)), dtype=np.uint8)
+    for col, (a, b, c) in enumerate(triangles):
+        for edge in ((a, b), (a, c), (b, c)):
+            d2[edge_index[edge], col] = 1
+    triangle_index = {tri: pos for pos, tri in enumerate(triangles)}
+    d3 = np.zeros((len(triangles), len(tetrahedra)), dtype=np.uint8)
+    for col, (a, b, c, d) in enumerate(tetrahedra):
+        for face in ((a, b, c), (a, b, d), (a, c, d), (b, c, d)):
+            d3[triangle_index[face], col] = 1
+    rank_d1 = gf2_rank(d1)
+    rank_d2 = gf2_rank(d2)
+    rank_d3 = gf2_rank(d3)
+    beta0 = n - rank_d1
+    beta1 = len(edges) - rank_d1 - rank_d2
+    beta2 = len(triangles) - rank_d2 - rank_d3
+    adjacency = np.zeros((n, n), dtype=float)
+    for u, v in edges:
+        adjacency[u, v] = 1.0
+        adjacency[v, u] = 1.0
+    degree = adjacency.sum(axis=1)
+    laplacian = np.diag(degree) - adjacency
+    eigvals = np.linalg.eigvalsh(laplacian)
+    lambda2 = float(eigvals[1]) if n > 1 else 0.0
+    adjacency_eigs = np.linalg.eigvalsh(adjacency) if n > 0 else np.array([0.0])
+    spectral_radius = float(np.max(np.abs(adjacency_eigs))) if adjacency_eigs.size else 0.0
+    positive = eigvals[eigvals > 1e-12]
+    if positive.size and positive.sum() > 0:
+        probs = positive / positive.sum()
+        spectral_entropy = float(-(probs * np.log(probs)).sum())
+    else:
+        spectral_entropy = 0.0
+    return int(beta0), int(beta1), int(beta2), lambda2, spectral_radius, spectral_entropy
+
+
 def future_citations(citation_edges: np.ndarray, years: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     source_year = years[citation_edges[:, 0]]
     target_year = years[citation_edges[:, 1]]
@@ -68,13 +147,15 @@ def future_citations(citation_edges: np.ndarray, years: np.ndarray) -> tuple[np.
     return future3, references
 
 
-def score_paper(topics: np.ndarray, pair_set: set[int], degree: np.ndarray) -> tuple[float, float, float, float]:
+def score_paper(topics: np.ndarray, pair_set: set[int], degree: np.ndarray) -> tuple[float, float, float, float, int, int, int, float, float, float]:
     if topics.size < 2:
-        return 0.0, 0.0, 0.0, 0.0
+        beta0, beta1, beta2, lambda2, radius, entropy = local_complex_stats(topics, set())
+        return 0.0, 0.0, 0.0, 0.0, beta0, beta1, beta2, lambda2, radius, entropy
     pairs = []
     novel = 0
     curvatures = []
     prior_degree = []
+    existing_edges: set[tuple[int, int]] = set()
     for u_raw, v_raw in combinations(topics.tolist(), 2):
         u, v = sorted((int(u_raw), int(v_raw)))
         key = u * N_FIELDS + v
@@ -82,6 +163,7 @@ def score_paper(topics: np.ndarray, pair_set: set[int], degree: np.ndarray) -> t
         pairs.append((u, v, exists))
         if exists:
             curvatures.append(4 - int(degree[u]) - int(degree[v]))
+            existing_edges.add((u, v))
         else:
             novel += 1
         prior_degree.extend((int(degree[u]), int(degree[v])))
@@ -99,7 +181,8 @@ def score_paper(topics: np.ndarray, pair_set: set[int], degree: np.ndarray) -> t
         boundary_share = 0.0
     mean_curvature = float(np.mean(curvatures)) if curvatures else 0.0
     mean_prior_degree = float(np.mean(prior_degree)) if prior_degree else 0.0
-    return novel_share, boundary_share, mean_curvature, mean_prior_degree
+    beta0, beta1, beta2, lambda2, radius, entropy = local_complex_stats(topics, existing_edges)
+    return novel_share, boundary_share, mean_curvature, mean_prior_degree, beta0, beta1, beta2, lambda2, radius, entropy
 
 
 def update_pairs(topics: np.ndarray, pair_set: set[int], degree: np.ndarray) -> None:
@@ -122,7 +205,7 @@ def build_topology_features(years: np.ndarray, field_ids: np.ndarray, offsets: n
         paper_ids = np.where(years == year)[0]
         for paper_id in paper_ids:
             topics = paper_topics(field_ids, offsets, int(paper_id))
-            novel, boundary, curvature, prior_degree = score_paper(topics, pair_set, degree)
+            novel, boundary, curvature, prior_degree, beta0, beta1, beta2, lambda2, radius, entropy = score_paper(topics, pair_set, degree)
             rows.append(
                 {
                     "paper_id": int(paper_id),
@@ -133,6 +216,12 @@ def build_topology_features(years: np.ndarray, field_ids: np.ndarray, offsets: n
                     "boundary_completion_share": boundary,
                     "mean_forman_curvature": curvature,
                     "mean_prior_topic_degree": prior_degree,
+                    "local_betti_0": beta0,
+                    "local_betti_1": beta1,
+                    "local_betti_2": beta2,
+                    "local_laplacian_lambda2": lambda2,
+                    "local_spectral_radius": radius,
+                    "local_spectral_entropy": entropy,
                     "prior_topic_edges": len(pair_set),
                 }
             )
@@ -149,7 +238,17 @@ def add_outcomes(features: pd.DataFrame, years: np.ndarray, labels: np.ndarray, 
     features["author_count"] = author_count[features["paper_id"].to_numpy()]
     features["log_future_cites_3y"] = np.log1p(features["future_cites_3y"])
     features["negative_forman_curvature"] = -features["mean_forman_curvature"]
-    for col in ("novel_pair_share", "boundary_completion_share", "negative_forman_curvature"):
+    for col in (
+        "novel_pair_share",
+        "boundary_completion_share",
+        "negative_forman_curvature",
+        "local_betti_0",
+        "local_betti_1",
+        "local_betti_2",
+        "local_laplacian_lambda2",
+        "local_spectral_radius",
+        "local_spectral_entropy",
+    ):
         subset = features.loc[(features["year"] >= ANALYTIC_START) & (features["year"] <= ANALYTIC_END), col]
         sd = subset.std(ddof=0)
         features[f"z_{col}"] = (features[col] - subset.mean()) / sd if sd > 0 else 0.0
@@ -205,17 +304,31 @@ def regression_models(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         ("Log cites", "+ Topology index", "log_future_cites_3y", base + ["topological_opportunity"]),
         (
             "Log cites",
-            "+ Components",
+            "+ TDA/Spectral",
             "log_future_cites_3y",
-            base + ["z_novel_pair_share", "z_boundary_completion_share", "z_negative_forman_curvature"],
+            base
+            + [
+                "z_novel_pair_share",
+                "z_local_betti_1",
+                "z_local_laplacian_lambda2",
+                "z_local_spectral_entropy",
+                "z_negative_forman_curvature",
+            ],
         ),
         ("Breakthrough", "Baseline", "breakthrough_top5", base),
         ("Breakthrough", "+ Topology index", "breakthrough_top5", base + ["topological_opportunity"]),
         (
             "Breakthrough",
-            "+ Components",
+            "+ TDA/Spectral",
             "breakthrough_top5",
-            base + ["z_novel_pair_share", "z_boundary_completion_share", "z_negative_forman_curvature"],
+            base
+            + [
+                "z_novel_pair_share",
+                "z_local_betti_1",
+                "z_local_laplacian_lambda2",
+                "z_local_spectral_entropy",
+                "z_negative_forman_curvature",
+            ],
         ),
     ]
     rows = []
@@ -226,7 +339,14 @@ def regression_models(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
         beta, se, r2 = ols_hc1(y, X)
         result = dict(zip(names, zip(beta, se)))
         col = f"{outcome_name}: {spec_name}"
-        for key in ("topological_opportunity", "z_novel_pair_share", "z_boundary_completion_share", "z_negative_forman_curvature"):
+        for key in (
+            "topological_opportunity",
+            "z_novel_pair_share",
+            "z_local_betti_1",
+            "z_local_laplacian_lambda2",
+            "z_local_spectral_entropy",
+            "z_negative_forman_curvature",
+        ):
             if key in result:
                 coef, stderr = result[key]
                 p = 2 * norm.sf(abs(coef / stderr)) if stderr > 0 else 1.0
@@ -239,7 +359,9 @@ def write_regression_table(rows: pd.DataFrame, meta: pd.DataFrame) -> None:
     variables = [
         ("topological_opportunity", "TO index"),
         ("z_novel_pair_share", "Novel pairs"),
-        ("z_boundary_completion_share", "Boundary closure"),
+        ("z_local_betti_1", "$\\beta_1$ holes"),
+        ("z_local_laplacian_lambda2", "$\\lambda_2(L)$"),
+        ("z_local_spectral_entropy", "Spectral entropy"),
         ("z_negative_forman_curvature", "Negative curvature"),
     ]
     models = meta["model"].tolist()
@@ -269,7 +391,7 @@ def write_regression_table(rows: pd.DataFrame, meta: pd.DataFrame) -> None:
         lines.append(" & " + " & ".join(ses) + r" \\")
     lines.append(r"\midrule")
     outcome_labels = {"Log cites": "Log cites", "Breakthrough": "Top 5\\%"}
-    spec_labels = {"Baseline": "Base", "+ Topology index": "+ TO", "+ Components": "+ Comp."}
+    spec_labels = {"Baseline": "Base", "+ Topology index": "+ TO", "+ TDA/Spectral": "+ TDA/Spec."}
     lines.append("Outcome & " + " & ".join([outcome_labels[m.split(":")[0]] for m in models]) + r" \\")
     lines.append("Specification & " + " & ".join([spec_labels[m.split(": ")[1]] for m in models]) + r" \\")
     lines.append("Controls & " + " & ".join(["Yes"] * len(models)) + r" \\")
@@ -290,7 +412,14 @@ def write_regression_table(rows: pd.DataFrame, meta: pd.DataFrame) -> None:
 
 def prediction_table(df: pd.DataFrame) -> pd.DataFrame:
     base = ["log_authors", "log_topics", "log_references"]
-    topo = base + ["topological_opportunity", "z_novel_pair_share", "z_boundary_completion_share", "z_negative_forman_curvature"]
+    topo = base + [
+        "topological_opportunity",
+        "z_novel_pair_share",
+        "z_local_betti_1",
+        "z_local_laplacian_lambda2",
+        "z_local_spectral_entropy",
+        "z_negative_forman_curvature",
+    ]
     rows = []
     for name, covariates in (("Baseline controls", base), ("Controls + topology", topo)):
         X, _ = design_matrix(df, covariates)
@@ -369,6 +498,12 @@ def write_summary_tables(features: pd.DataFrame, analytic: pd.DataFrame, pred: p
         "boundary_completion_share",
         "negative_forman_curvature",
         "topological_opportunity",
+        "local_betti_0",
+        "local_betti_1",
+        "local_betti_2",
+        "local_laplacian_lambda2",
+        "local_spectral_radius",
+        "local_spectral_entropy",
         "author_count",
         "topic_count",
         "references",
@@ -392,6 +527,12 @@ def write_summary_tables(features: pd.DataFrame, analytic: pd.DataFrame, pred: p
         "boundary_completion_share": "Boundary-completion potential",
         "negative_forman_curvature": "Negative Forman curvature",
         "topological_opportunity": "Topological opportunity index",
+        "local_betti_0": "Local $\\beta_0$",
+        "local_betti_1": "Local $\\beta_1$",
+        "local_betti_2": "Local $\\beta_2$",
+        "local_laplacian_lambda2": "Local $\\lambda_2(L)$",
+        "local_spectral_radius": "Local spectral radius",
+        "local_spectral_entropy": "Local spectral entropy",
         "author_count": "Authors",
         "topic_count": "Topics",
         "references": "References",
@@ -415,6 +556,9 @@ def make_figures(features: pd.DataFrame, analytic: pd.DataFrame, pred: pd.DataFr
         novel_pair_share=("novel_pair_share", "mean"),
         boundary_completion_share=("boundary_completion_share", "mean"),
         negative_forman_curvature=("negative_forman_curvature", "mean"),
+        local_betti_1=("local_betti_1", "mean"),
+        local_laplacian_lambda2=("local_laplacian_lambda2", "mean"),
+        local_spectral_entropy=("local_spectral_entropy", "mean"),
         prior_topic_edges=("prior_topic_edges", "mean"),
     )
     fig, ax1 = plt.subplots(figsize=(7.2, 4.6))
@@ -431,6 +575,20 @@ def make_figures(features: pd.DataFrame, analytic: pd.DataFrame, pred: pd.DataFr
     ax1.legend(lines + lines2, labels + labels2, frameon=False, loc="center right")
     fig.tight_layout()
     fig.savefig(FIGURES / "annual_topology.pdf")
+    plt.close(fig)
+    fig, ax1 = plt.subplots(figsize=(7.2, 4.6))
+    ax1.plot(annual.index, annual["local_betti_1"], marker="o", label=r"Mean local $\beta_1$")
+    ax1.set_xlabel("Publication year")
+    ax1.set_ylabel(r"Mean local $\beta_1$")
+    ax2 = ax1.twinx()
+    ax2.plot(annual.index, annual["local_laplacian_lambda2"], marker="s", color="darkred", label=r"Mean local $\lambda_2(L)$")
+    ax2.plot(annual.index, annual["local_spectral_entropy"], marker="^", color="black", linestyle="--", label="Mean spectral entropy")
+    ax2.set_ylabel("Spectral metrics")
+    lines, labels = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax1.legend(lines + lines2, labels + labels2, frameon=False, loc="upper left")
+    fig.tight_layout()
+    fig.savefig(FIGURES / "annual_tda_spectral.pdf")
     plt.close(fig)
     temp = analytic.copy()
     temp["topology_bin"] = pd.qcut(temp["topological_opportunity"], 20, labels=False, duplicates="drop")
