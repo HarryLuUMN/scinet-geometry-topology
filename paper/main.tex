@@ -166,7 +166,7 @@ Table~\ref{tab:regressions} reports the main regression evidence. The boundary-c
 
 \input{tables/prediction_table.tex}
 
-Table~\ref{tab:prediction} and Figure~\ref{fig:prediction} report out-of-time prediction. Models are trained on papers from 2011--2014 and tested on 2015--2016 papers. The prediction exercise uses histogram gradient boosting so that topology can enter through threshold effects and feature interactions rather than only as a linear main effect. Adding topology produces a small but positive gain over the baseline in both ROC AUC and average precision. This should be read as an incremental forecasting result rather than a large black-box performance claim.
+Table~\ref{tab:prediction} and Figure~\ref{fig:prediction} report out-of-time prediction. Models are trained on papers from 2011--2014 and tested on 2015--2016 papers. The prediction exercise uses histogram gradient boosting so that local topology can enter through threshold effects and feature interactions rather than only as a linear main effect. Adding local Betti-number and spectral graph features produces a small but positive gain over the baseline in both ROC AUC and average precision. This should be read as an incremental forecasting result rather than a large black-box performance claim.
 
 \begin{figure}[!htbp]
 \centering

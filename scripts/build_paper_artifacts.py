@@ -520,15 +520,12 @@ def write_regression_table(rows: pd.DataFrame, meta: pd.DataFrame) -> None:
 def prediction_table(df: pd.DataFrame) -> pd.DataFrame:
     base = ["log_authors", "log_topics", "log_references", "year"]
     topo = base + [
-        "topological_opportunity",
-        "z_novel_pair_share",
         "z_local_betti_0",
         "z_local_betti_1",
         "z_local_betti_2",
         "z_local_laplacian_lambda2",
         "z_local_spectral_radius",
         "z_local_spectral_entropy",
-        "z_negative_forman_curvature",
     ]
     rows = []
     for name, covariates in (("Baseline controls", base), ("Controls + topology", topo)):
@@ -575,7 +572,7 @@ def write_prediction_table(pred: pd.DataFrame) -> None:
             r"\end{tabular}",
             r"\begin{tablenotes}",
             r"\footnotesize",
-            r"\item Notes: Histogram gradient-boosted classifiers train on 2011--2014 papers and test on 2015--2016 papers. Baseline controls include log authors, log topics, log references, and publication year. The topology model adds standardized TDA, spectral, and curvature features. Breakthrough papers are defined as top-five-percent papers within publication year by three-year forward citations.",
+            r"\item Notes: Histogram gradient-boosted classifiers train on 2011--2014 papers and test on 2015--2016 papers. Baseline controls include log authors, log topics, log references, and publication year. The topology model adds local Betti-number and spectral graph features. Breakthrough papers are defined as top-five-percent papers within publication year by three-year forward citations.",
             r"\end{tablenotes}",
             r"\end{threeparttable}",
             r"\end{table}",
